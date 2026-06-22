@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wrig"
+version = "0.1.0"
+description = "WSJTX Instance Manager — create and launch per-rig WSJTX instances with shared logging"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["wsjtx", "amateur-radio", "hamradio", "ft8", "msk144"]
+
+[project.scripts]
+wrig = "wrig.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wrig*"]
