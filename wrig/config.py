@@ -92,11 +92,11 @@ def _default_wsjtx_binary() -> str:
 
 
 def _default_log_dir() -> str:
+    # Placeholder pointing at the shared wsjtx_log.adi on the NAS — user edits this.
     if is_windows():
-        # UNC path — user must edit this
-        return r"\\192.168.1.5\Users\share"
+        return r"\\192.168.1.5\share"   # UNC; or a mapped drive like Z:\
     else:
-        return "/mnt/Users/share"
+        return "/mnt/nas/share"
 
 
 # ---------------------------------------------------------------------------
@@ -108,9 +108,14 @@ DEFAULT_MACHINE_CONFIG = """\
 #
 # [machine]
 #   wsjtx_binary   = full path to wsjtx executable
-#   shared_log_dir = directory on TrueNAS (or other share) that holds wsjtx_log.adi
-#                    Linux:   /mnt/Users/share
-#                    Windows: \\\\192.168.1.5\\Users\\share
+#   shared_log_dir = directory holding the ONE shared wsjtx_log.adi on the NAS.
+#                    Same file for every machine; name it however this machine
+#                    reaches the share:
+#                      Linux:   /mnt/nas/share        (NAS mounted locally)
+#                      Windows: \\\\192.168.1.5\\share   (UNC), or a mapped drive
+#                               such as  Z:\\  pointed at that UNC.
+#                    Windows needs Developer Mode ON so WRIG can create the
+#                    symlink to the share without administrator rights.
 #   instances_dir  = (optional) override where instance config dirs are stored
 
 [machine]

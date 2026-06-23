@@ -6,11 +6,12 @@ from wrig.registry import parse_rig_name
 
 
 def test_default_log_dir_paths():
-    # The default path should be what the current platform expects.
+    # The default is a NAS placeholder the user edits; pin the current value
+    # so accidental drift is caught.
     if os.name == "nt":
-        assert _default_log_dir() == r"\\192.168.1.5\Users\share"
+        assert _default_log_dir() == r"\\192.168.1.5\share"
     else:
-        assert _default_log_dir() == "/mnt/Users/share"
+        assert _default_log_dir() == "/mnt/nas/share"
 
 
 def test_default_wsjtx_binary_exists_or_fallback():

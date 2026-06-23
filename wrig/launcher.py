@@ -4,23 +4,23 @@ wrig/launcher.py — Start and stop WSJTX instances.
 WSJTX is launched with:
   wsjtx --rig-name <rig_name>
 
-WSJTX uses the rig name to locate its config in:
-  Linux/Mac:  $HOME/.config/WSJT-X-<rig_name>/
-  Windows:    %LOCALAPPDATA%\WSJT-X - <rig_name>\
+WSJTX keeps TWO per-rig folders, located by the rig name:
+  CONFIG (wsjtx.ini):
+    Linux/Mac:  ~/.config/WSJT-X - <rig_name>/
+    Windows:    %LOCALAPPDATA%\WSJT-X - <rig_name>\
+  LOG/DATA (wsjtx_log.adi, ALL.TXT):
+    Linux/Mac:  ~/.local/share/WSJT-X - <rig_name>/   (separate from config)
+    Windows:    %LOCALAPPDATA%\WSJT-X - <rig_name>\   (same folder as config)
 
-BUT we want WSJTX to read from OUR instance dir, not its default.
-WSJTX does not have a --config-dir flag, so we work around it by
-setting the HOME (Linux/Mac) or LOCALAPPDATA (Windows) environment
-variable to redirect it, OR by using a wrapper that pre-populates
-WSJTX's expected path via a symlink/junction.
+WSJTX has no --config-dir flag, so to make it read from OUR instance dir we
+create a link from its expected CONFIG path to our instance dir. This is done
+once at instance creation and re-verified at launch:
+  - Linux/Mac: symlink   ~/.config/WSJT-X - <rig_name>      →  our instance dir
+  - Windows:   junction  %LOCALAPPDATA%\WSJT-X - <rig_name> →  our instance dir
+    (a directory junction; works without admin rights)
 
-Strategy used here:
-  - We create a symlink/junction from WSJTX's expected config path
-    to our instance dir. This is done once at instance creation and
-    re-verified at launch time.
-  - On Linux: ~/.config/WSJT-X-<rig_name>  →  our instance dir
-  - On Windows: %APPDATA%\WSJT-X - <rig_name>  →  our instance dir
-    (requires Developer Mode for symlinks; falls back to copying)
+The shared LOG link is placed separately, in WSJTX's log dir (see
+wsjtx_log_dir_for() and instance.create_log_link()).
 """
 
 import os
@@ -66,6 +66,25 @@ def wsjtx_config_path_for(rig_name: str) -> Path:
     This is where we need to place a symlink → our instance dir.
     """
     return wsjtx_config_paths_for(rig_name)[0]
+
+
+def wsjtx_log_dir_for(rig_name: str, instance_dir: Path) -> Path:
+    """
+    Return the directory where WSJT-X actually writes wsjtx_log.adi for this
+    --rig-name instance. This is where the shared-log symlink must live.
+
+    Windows:   config and log share one dir (%LOCALAPPDATA%\\WSJT-X - <rig>), and
+               WRIG junctions that dir to instance_dir, so the log lands in
+               instance_dir — return it directly.
+    Linux/Mac: WSJT-X writes the log to its DATA dir
+               ($XDG_DATA_HOME/WSJT-X - <rig>), which is SEPARATE from the
+               config dir WRIG links. The symlink must go there, not in the
+               config-side instance dir.
+    """
+    if is_windows():
+        return instance_dir
+    data_root = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
+    return data_root / f"WSJT-X - {rig_name}"
 
 
 def find_existing_wsjtx_config_path(rig_name: str) -> Optional[Path]:

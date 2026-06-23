@@ -259,7 +259,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
-  wrig create flexa-ft8           # create instance from flexa template
+  wrig create flexa-ft8           # create instance (seed from a profile, else template)
   wrig create ic7300-2m-ft8       # create with radio+band+mode name
   wrig start flexa-ft8            # launch directly
   wrig start flex                 # fuzzy pick from all 'flex*' instances
@@ -267,7 +267,7 @@ examples:
   wrig list                       # show all instances
   wrig delete flexb-msk144        # remove from registry
   wrig delete flexb-msk144 --files  # also delete config dir
-  wrig relink ic7300-2m-ft8       # fix broken shared log symlink
+  wrig relink ic7300-2m-ft8       # re-link wsjtx_log.adi to the shared NAS log
   wrig config                     # show paths and machine config
   eval "$(wrig completion bash)"  # enable tab completion
         """
@@ -304,7 +304,7 @@ examples:
 
     # relink
     p_relink = sub.add_parser("relink",
-                               help="Re-create shared log symlink for an instance")
+                               help="Re-link wsjtx_log.adi (in WSJTX's log dir) to the shared NAS log")
     p_relink.add_argument("rig_name", metavar="rig-name")
 
     # config
