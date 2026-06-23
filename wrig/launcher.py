@@ -4,23 +4,23 @@ wrig/launcher.py — Start and stop WSJTX instances.
 WSJTX is launched with:
   wsjtx --rig-name <rig_name>
 
-WSJTX keeps TWO per-rig folders, located by the rig name:
-  CONFIG (wsjtx.ini):
-    Linux/Mac:  ~/.config/WSJT-X - <rig_name>/
-    Windows:    %LOCALAPPDATA%\WSJT-X - <rig_name>\
+WSJTX keeps TWO per-rig locations, derived from the rig name (its own feature):
+  CONFIG (settings):
+    Linux/Mac:  ~/.config/WSJT-X - <rig_name>.ini   (a FLAT FILE, verified)
+    Windows:    a flat .ini under %LOCALAPPDATA%     (exact name TBD on Windows)
   LOG/DATA (wsjtx_log.adi, ALL.TXT):
-    Linux/Mac:  ~/.local/share/WSJT-X - <rig_name>/   (separate from config)
-    Windows:    %LOCALAPPDATA%\WSJT-X - <rig_name>\   (same folder as config)
+    Linux/Mac:  ~/.local/share/WSJT-X - <rig_name>/  (DIRECTORY; separate from config)
+    Windows:    %LOCALAPPDATA%\WSJT-X - <rig_name>\
 
-WSJTX has no --config-dir flag, so to make it read from OUR instance dir we
-create a link from its expected CONFIG path to our instance dir. This is done
-once at instance creation and re-verified at launch:
-  - Linux/Mac: symlink   ~/.config/WSJT-X - <rig_name>      →  our instance dir
-  - Windows:   junction  %LOCALAPPDATA%\WSJT-X - <rig_name> →  our instance dir
-    (a directory junction; works without admin rights)
+The shared LOG link is placed in WSJTX's log/data dir (see wsjtx_log_dir_for()
+and instance.create_log_link()) — this works.
 
-The shared LOG link is placed separately, in WSJTX's log dir (see
-wsjtx_log_dir_for() and instance.create_log_link()).
+KNOWN ISSUE (under review): the *_config_link helpers below create a directory
+symlink/junction at WSJTX's config path → our instance dir. On Linux WSJTX reads
+the flat ~/.config/WSJT-X - <rig>.ini and IGNORES that directory, so the config
+redirect (and instance-dir wsjtx.ini seeding) has no effect. To actually seed
+config, WRIG would write the flat .ini directly. Pending confirmation of the
+Windows config path before reworking. See WINDOWS_HANDOFF.md.
 """
 
 import os

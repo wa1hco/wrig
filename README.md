@@ -55,41 +55,35 @@ selection and display.
 
 ## How It Works
 
-WSJTX keeps two separate per-rig folders, and WRIG touches both. **This split is
-the single most important thing to understand:**
+### How WSJTX itself stores per-rig files
 
-| What | WSJTX path for `--rig-name flexa-ft8` | WRIG's job |
-|------|----------------------------------------|------------|
-| **Config** (`wsjtx.ini`) | Linux/Mac: `~/.config/WSJT-X - flexa-ft8/`<br>Windows: `%LOCALAPPDATA%\WSJT-X - flexa-ft8\` | Link the folder to the WRIG instance dir |
-| **Log / data** (`wsjtx_log.adi`, `ALL.TXT`) | Linux/Mac: `~/.local/share/WSJT-X - flexa-ft8/`<br>Windows: `%LOCALAPPDATA%\WSJT-X - flexa-ft8\` *(same folder as config)* | Link `wsjtx_log.adi` to the shared NAS log |
+`wsjtx --rig-name NAME` is a **built-in WSJTX feature**: WSJTX appends ` - NAME`
+to its own config and data locations. Config and data are **separate**, and on
+Linux they are even different *kinds* of object:
 
-On **Linux/Mac** config and log are two *different* folders; on **Windows** they
-are the *same* folder. That is why the shared-log link does **not** sit next to
-`wsjtx.ini` on Linux.
+| | Linux/Mac *(verified)* | Windows *(to be confirmed — see [Verifying on Windows](#verifying-wsjtx-paths-on-windows))* |
+|---|---|---|
+| **Settings** | a flat **file** `~/.config/WSJT-X - NAME.ini` | a flat `.ini` under `%LOCALAPPDATA%` |
+| **Data + log** | a **directory** `~/.local/share/WSJT-X - NAME/`<br>(`wsjtx_log.adi`, `ALL.TXT`, `save/`, …) | `%LOCALAPPDATA%\WSJT-X - NAME\` |
 
-### Instance directories (config)
+(Without `--rig-name` it's plain `~/.config/WSJT-X.ini` + `~/.local/share/WSJT-X/`.)
+The per-rig separation is WSJTX's doing — WRIG does not create it.
 
-Each instance gets its own config directory under `~/.config/wrig/instances/<rig-name>/`.
-WRIG points WSJTX's config path at it with a symlink (Linux/Mac) or directory
-junction (Windows):
+### What WRIG manages
 
-```
-Linux/Mac:  ~/.config/WSJT-X - flexa-ft8       →  ~/.config/wrig/instances/flexa-ft8/
-Windows:    %LOCALAPPDATA%\WSJT-X - flexa-ft8   →  ...\wrig\instances\flexa-ft8\
-```
+WRIG launches `wsjtx --rig-name <rig-name>` and adds the things WSJTX doesn't do
+itself:
 
-WSJTX finds its config normally via `--rig-name flexa-ft8`; it just happens to
-land in the WRIG-managed directory.
+- **Shared log** — the main feature (below).
+- **Registry** of known instances, an interactive **picker**, and shell
+  **completion**.
 
 ### Shared log (one file on the NAS)
 
 There is exactly **one** `wsjtx_log.adi`, and it lives on your TrueNAS share.
-Every instance — on every PC, Windows or Linux — points its WSJTX log at that
-one file, so "worked before" colouring and dupe checking are shared across all
-rigs and machines.
-
-WRIG places the symlink in **WSJTX's log directory** (the right column above),
-not in the config dir:
+WRIG places a symlink in **WSJTX's log directory** (the data dir above) pointing
+at it, so "worked before" colouring and dupe checking are shared across all rigs
+and every PC:
 
 ```
 Linux/Mac:  ~/.local/share/WSJT-X - flexa-ft8/wsjtx_log.adi  →  <shared_log_dir>/wsjtx_log.adi
@@ -105,51 +99,28 @@ If WRIG finds a **real** (non-symlink) `wsjtx_log.adi` already in a log dir, it
 renames it to `wsjtx_log.adi.local-backup` before linking — it never deletes a
 local log that might hold un-merged QSOs.
 
-### Instance config: seeding and templates
+### ⚠️ Config seeding — under review
 
-When you create an instance, WRIG fills in `wsjtx.ini` from the first source
-that applies:
+WRIG *also* creates an instance dir under `~/.config/wrig/instances/<rig-name>/`,
+a directory symlink `~/.config/WSJT-X - <rig-name>` → that dir, and seeds a
+`wsjtx.ini` there (copy an existing profile, clear radio/audio, patch `Rig name`).
 
-1. **Import** — if a WSJTX config dir already exists for that rig name, WRIG
-   adopts it in place and links it.
-2. **Seed from an existing profile** *(default)* — copy a known-good `wsjtx.ini`
-   (your base `WSJT-X/wsjtx.ini`, an unmanaged `WSJT-X - <rig>` profile, or
-   another WRIG instance) and **keep everything** — colours, logging, operator
-   checkboxes, MyCall/MyGrid — while **clearing only the radio/audio/CAT/PTT
-   keys**, so you pick the rig and sound device for this instance. `Rig name=`
-   is then set to match.
-3. **Template** — if no profile is found, copy the best match from
-   `~/.config/wrig/templates/` (order below).
-4. **Minimal stub** — if there is no template either, write a 4-line placeholder.
-
-Template selection order for `ic7300-2m-ft8`:
-1. `ic7300-2m-ft8.ini`   (exact)
-2. `ic7300-2m.ini`
-3. `ic7300-ft8.ini`
-4. `ic7300.ini`          ← matches here
-5. `default.ini`
-
-**Populate your templates by copying your working wsjtx.ini files:**
-
-```bash
-cp ~/.config/WSJT-X/wsjtx.ini ~/.config/wrig/templates/flexa.ini
-cp ~/.config/WSJT-X\ -\ flex/wsjtx.ini ~/.config/wrig/templates/flexb.ini
-```
-
-WRIG also discovers existing WSJT-X config directories under
-`~/.config/WSJT-X - <rig-name>` (Linux/Mac) or `%LOCALAPPDATA%\WSJT-X - <rig-name>`
-(Windows). If one exists when you run `wrig create <rig-name>`, WRIG imports that
-configuration instead of creating a fresh instance.
+**On Linux this does not affect WSJTX's configuration:** WSJTX reads the flat
+file `~/.config/WSJT-X - NAME.ini` (see table above) and ignores both the
+directory symlink and the seeded `wsjtx.ini`. The per-rig config you get comes
+from WSJTX's native `--rig-name`, not from this layer. The seeding/redirect
+mechanism is being reworked to target the flat `.ini` directly (or be removed);
+the Windows config path is being confirmed first. **The shared-log feature above
+is unaffected and works.**
 
 ## Commands
 
 ```
 wrig create <rig-name> [--force]
-    Create a new instance. If an existing WSJT-X config directory already
-    exists for that rig name, WRIG imports it. Otherwise it fills in wsjtx.ini
-    by seeding from an existing profile (clearing radio/audio), or falls back to
-    a template, then a minimal stub. Either way it patches Rig name and links
-    wsjtx_log.adi (in WSJTX's log dir) to the shared NAS log.
+    Register a new instance and link wsjtx_log.adi (in WSJTX's log dir) to the
+    shared NAS log. It also seeds an instance-dir wsjtx.ini, but note: WSJTX
+    reads its own flat WSJT-X - <name>.ini, so that seeding currently does not
+    configure WSJTX (see "Config seeding — under review").
 
 wrig start [<rig-name-or-prefix>]
     Launch WSJTX. If name is omitted or a prefix, shows an interactive picker.
@@ -245,6 +216,23 @@ one shared file is a single point of failure, so periodic copies are cheap
 insurance). Do **not** put per-machine files there: `machine.ini`, `registry.json`,
 per-rig `wsjtx.ini`, and `ALL.TXT` all stay local to each PC.
 
+### Verifying WSJTX paths on Windows
+
+The Linux paths above are confirmed; the Windows config path/filename still needs
+checking on a real Windows box. Run these in `cmd` after launching a rig at least
+once (`wsjtx --rig-name TEST`), and see [`WINDOWS_HANDOFF.md`](WINDOWS_HANDOFF.md)
+for the full investigation + shared-log test checklist:
+
+```cmd
+dir "%LOCALAPPDATA%" | findstr /i WSJT
+dir "%LOCALAPPDATA%\WSJT-X*"
+dir "%APPDATA%" | findstr /i WSJT
+where /r "%LOCALAPPDATA%" wsjtx_log.adi
+```
+
+This tells us whether WSJTX uses a flat `WSJT-X - TEST.ini`, a nested
+`WSJT-X\...`, or a per-rig folder — which decides how the config layer is reworked.
+
 ## Installation
 
 ### Linux (Ubuntu)
@@ -302,32 +290,27 @@ Same as Linux. Not tested — patches welcome.
 ## File Layout (Linux/Mac)
 
 ```
-~/.config/wrig/
-  machine.ini              ← edit once per machine
-  registry.json            ← list of known instances (auto-managed)
-  templates/
-    flexa.ini              ← copy your working wsjtx.ini files here
-    flexb.ini
-    ic7300.ini
-    default.ini
-  instances/
-    flexa-ft8/
-      wsjtx.ini            ← seeded/templated, rig-name patched (CONFIG only)
-    flexb-msk144/
-      wsjtx.ini
-    ...
-
-# CONFIG: WSJTX's config lookup path → WRIG instance dir (symlink by wrig)
-~/.config/WSJT-X - flexa-ft8         →  ~/.config/wrig/instances/flexa-ft8/
-
-# LOG: WSJTX's data/log dir holds the shared-log symlink (placed by wrig)
-~/.local/share/WSJT-X - flexa-ft8/wsjtx_log.adi  →  <shared_log_dir>/wsjtx_log.adi
-~/.local/share/WSJT-X - flexb-msk144/wsjtx_log.adi  →  <shared_log_dir>/wsjtx_log.adi
+# --- What WSJTX actually reads/writes (created by WSJTX via --rig-name) ---
+~/.config/WSJT-X - flexa-ft8.ini                 ← CONFIG (flat file; WSJTX owns it)
+~/.local/share/WSJT-X - flexa-ft8/               ← DATA dir (WSJTX owns it)
+  wsjtx_log.adi  →  <shared_log_dir>/wsjtx_log.adi   ← shared-log symlink (placed by wrig)
+  ALL.TXT, save/, db.sqlite, ...                     ← stays local
 
 # The one shared log on the NAS:
 <shared_log_dir>/wsjtx_log.adi
+
+# --- WRIG's own files ---
+~/.config/wrig/
+  machine.ini              ← edit once per machine
+  registry.json            ← list of known instances (auto-managed)
+  instances/<rig-name>/
+    wsjtx.ini              ← seeded by wrig, but WSJTX ignores it (see
+                             "Config seeding — under review")
+
+# A directory symlink wrig creates that WSJTX does NOT use on Linux:
+~/.config/WSJT-X - flexa-ft8   →  ~/.config/wrig/instances/flexa-ft8/   (inert)
 ```
 
-On **Windows** there is no `~/.local/share` split: config and log share
-`%LOCALAPPDATA%\WSJT-X - <rig>\`, which WRIG junctions to the instance dir, so
-`wsjtx.ini` and the `wsjtx_log.adi` symlink both land there.
+On **Windows** there is no `~/.local/share` split: config and data both sit under
+`%LOCALAPPDATA%`. The exact config filename is still being confirmed — see
+[Verifying WSJTX paths on Windows](#verifying-wsjtx-paths-on-windows).

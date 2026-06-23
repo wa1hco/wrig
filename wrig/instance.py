@@ -5,12 +5,17 @@ Instance (CONFIG) directory layout:
   <instances_dir>/<rig_name>/
     wsjtx.ini          ← seeded from an existing profile, else templated/stub;
                          rig-name patched
-WSJTX reads config from here via a link from its expected config path.
 
-The shared LOG link is NOT here — WSJTX writes wsjtx_log.adi to its log dir,
-which on Linux/Mac is a SEPARATE folder (~/.local/share/WSJT-X - <rig>/) and on
-Windows is the same folder as config. create_log_link() places the symlink there
-(see launcher.wsjtx_log_dir_for).
+KNOWN ISSUE (under review): WSJTX does NOT read this wsjtx.ini. On Linux it reads
+the flat file ~/.config/WSJT-X - <rig>.ini and ignores both this file and the
+config-dir symlink. So the seeding below currently does not configure WSJTX; it
+is pending a rework (write the flat .ini directly) once the Windows config path
+is confirmed. See WINDOWS_HANDOFF.md.
+
+The shared LOG link, by contrast, works: WSJTX writes wsjtx_log.adi to its log
+dir — a SEPARATE folder on Linux/Mac (~/.local/share/WSJT-X - <rig>/) and the
+same folder as config on Windows — and create_log_link() places the symlink
+there (see launcher.wsjtx_log_dir_for).
 
 wsjtx.ini source order (first that applies): import existing → seed from an
 existing profile (clearing radio/audio) → best-match template → minimal stub.
