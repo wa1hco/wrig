@@ -5,8 +5,10 @@ a shared log file on a TrueNAS (or any network) share.
 
 ## Quick Start
 
+### Linux / macOS
+
 ```bash
-cd /home/jeff/ham/wrig
+cd ~/ham/wrig
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
@@ -15,13 +17,25 @@ wrig create flexa-ft8     # create first instance
 wrig start flexa-ft8      # launch it
 ```
 
-If `wrig` is not yet on your PATH, use the CLI directly:
-
-```bash
-python3 -m wrig.cli config
-```
+If `wrig` is not yet on your PATH, use the CLI directly: `python3 -m wrig.cli config`
 
 If your Python is externally managed by the OS (Debian/Ubuntu PEP 668), the `venv` workflow above is the reliable install path.
+
+### Windows
+
+A venv is not required — install directly:
+
+```powershell
+cd $HOME\Documents\wrig
+pip install -e .
+wrig config               # see paths, edit machine.ini
+wrig create flexa-ft8     # create first instance
+wrig start flexa-ft8      # launch it
+```
+
+If `wrig` is not yet on your PATH, use the CLI directly: `python -m wrig.cli config`
+
+> If you just ran `pip install -e .`, open a **new** PowerShell window so the updated PATH takes effect before calling `wrig`.
 
 ## Rig Name Convention
 
@@ -258,15 +272,15 @@ python3 -m wrig.cli --help
 
 ### Windows
 
+A venv is not required on Windows — install directly:
+
 ```powershell
 git clone https://github.com/yourname/wrig.git
 cd wrig
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
 pip install -e .
 ```
 
-If `wrig` is not available immediately, use:
+If `wrig` is not available immediately, open a new PowerShell window (to refresh PATH), or use:
 
 ```powershell
 python -m wrig.cli --help
