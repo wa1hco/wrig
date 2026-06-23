@@ -41,8 +41,15 @@ from .registry import get_instance, list_instances
 def wsjtx_config_roots() -> list[Path]:
     """Return the known root directories WSJT-X may use for per-instance config."""
     if is_windows():
-        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
-        return [base]
+        # WSJT-X stores per-rig config under %LOCALAPPDATA% (AppData\Local),
+        # NOT %APPDATA% (Roaming). Local must come first: it's both where
+        # WSJT-X actually reads and where our junction must be placed.
+        local = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        roaming = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        roots = [local]
+        if roaming != local:
+            roots.append(roaming)  # fallback for discovery of legacy/misplaced configs
+        return roots
     else:
         roots = [Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))]
         roots.append(Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")))
