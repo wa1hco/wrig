@@ -171,7 +171,7 @@ Windows (UNC path to the NAS):
 ```ini
 [machine]
 wsjtx_binary   = C:\WSJT\bin\wsjtx.exe
-shared_log_dir = \\192.168.1.5\share/WRIG
+shared_log_dir = \\192.168.1.5\share\WRIG
 ```
 
 ### Reaching the NAS on Windows: UNC vs mapped drive
