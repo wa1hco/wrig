@@ -5,14 +5,17 @@ Schema:
 {
   "flexa-ft8": {
     "created": "2026-06-22T10:00:00",
-    "template_used": "flexa",
+    "template_used": "seeded",
     "radio": "flexa",
     "band": "",
     "mode": "ft8",
-    "instance_dir": "/home/jeff/.config/wrig/instances/flexa-ft8"
+    "config_file": "/home/jeff/.config/WSJT-X - flexa-ft8.ini"
   },
   ...
 }
+
+config_file is informational (WSJTX's real per-rig config); WRIG recomputes the
+config/log paths from the rig name on demand, so a stale value here is harmless.
 """
 
 import json
@@ -50,7 +53,7 @@ def instance_exists(rig_name: str) -> bool:
 
 
 def register_instance(rig_name: str, template_used: str, radio: str, band: str,
-                      mode: str, instance_dir: Path) -> None:
+                      mode: str, config_file: Path) -> None:
     data = _load()
     data[rig_name] = {
         "created": datetime.now(timezone.utc).isoformat(),
@@ -58,7 +61,7 @@ def register_instance(rig_name: str, template_used: str, radio: str, band: str,
         "radio": radio,
         "band": band,
         "mode": mode,
-        "instance_dir": str(instance_dir),
+        "config_file": str(config_file),
     }
     _save(data)
 

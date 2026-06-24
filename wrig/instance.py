@@ -1,24 +1,22 @@
 """
-wrig/instance.py — Create, delete, and manage WSJTX instance directories.
+wrig/instance.py — Create, delete, and manage WSJTX rig instances.
 
-Instance (CONFIG) directory layout:
-  <instances_dir>/<rig_name>/
-    wsjtx.ini          ← seeded from an existing profile, else templated/stub;
-                         rig-name patched
+Model: "seed once, then step away." WSJTX owns its own per-rig config via
+`--rig-name` (it reads WSJT-X - <rig>.ini natively). WRIG does NOT redirect that
+config; at create time it seeds WSJTX's real config file from an existing
+profile, then leaves WSJTX to manage it. WRIG's lasting job is the shared log.
 
-KNOWN ISSUE (under review): WSJTX does NOT read this wsjtx.ini. On Linux it reads
-the flat file ~/.config/WSJT-X - <rig>.ini and ignores both this file and the
-config-dir symlink. So the seeding below currently does not configure WSJTX; it
-is pending a rework (write the flat .ini directly) once the Windows config path
-is confirmed. See WINDOWS_HANDOFF.md.
+create_instance(<rig>):
+  - config file = launcher.wsjtx_config_file_for(<rig>)
+      Linux/Mac: ~/.config/WSJT-X - <rig>.ini            (flat file)
+      Windows:   %LOCALAPPDATA%\\WSJT-X - <rig>\\WSJT-X - <rig>.ini
+  - if it already exists -> adopt it (don't clobber unless --force)
+  - else seed: copy an existing profile, clear radio/audio, patch Rig name;
+    fall back to a curated template, then a minimal stub.
+  - link wsjtx_log.adi (in WSJTX's log dir) to the one shared NAS log.
 
-The shared LOG link, by contrast, works: WSJTX writes wsjtx_log.adi to its log
-dir — a SEPARATE folder on Linux/Mac (~/.local/share/WSJT-X - <rig>/) and the
-same folder as config on Windows — and create_log_link() places the symlink
-there (see launcher.wsjtx_log_dir_for).
-
-wsjtx.ini source order (first that applies): import existing -> seed from an
-existing profile (clearing radio/audio) -> best-match template -> minimal stub.
+Seed source order (find_base_wsjtx_ini): default WSJTX profile -> first existing
+per-rig profile.
 
 Template selection (best match wins):
   templates/<radio>-<band>-<mode>.ini   exact match
@@ -36,9 +34,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from .config import get_instances_dir, get_shared_log_dir, templates_dir, is_windows
-from .launcher import (ensure_wsjtx_config_link, find_existing_wsjtx_config_path,
-                       wsjtx_config_path_for, wsjtx_config_roots,
+from .config import get_shared_log_dir, templates_dir, is_windows
+from .launcher import (wsjtx_config_file_for, wsjtx_base_config_file,
                        find_existing_wsjtx_configs, wsjtx_log_dir_for)
 from .registry import (parse_rig_name, register_instance, unregister_instance,
                         instance_exists, get_instance)
@@ -129,34 +126,25 @@ def patch_wsjtx_ini(ini_path: Path, rig_name: str, band: str, mode: str) -> None
 
 def find_base_wsjtx_ini(exclude_rig: str = "") -> Optional[Path]:
     """
-    Return a wsjtx.ini file to seed a new WRIG instance, or None.
+    Return an existing WSJTX config .ini to seed a new rig from, or None.
 
-    Seed priority:
-      1) Base WSJT-X profile:        <config-root>/WSJT-X/wsjtx.ini
-      2) First unmanaged rig profile: <config-root>/WSJT-X - <name>/wsjtx.ini
-      3) First existing WRIG instance: <instances>/<rig>/wsjtx.ini (excluding exclude_rig)
+    Priority:
+      1) The default WSJTX profile's config (no --rig-name).
+      2) The first existing per-rig profile (excluding exclude_rig).
+
+    Paths are resolved per platform by the launcher (flat file on Linux/Mac,
+    file-inside-folder on Windows).
     """
-    for root in wsjtx_config_roots():
-        candidate = root / "WSJT-X" / "wsjtx.ini"
-        if candidate.is_file():
-            return candidate
+    base = wsjtx_base_config_file()
+    if base.is_file():
+        return base
 
-    discovered = find_existing_wsjtx_configs()
-    for _, cfg_dir in sorted(discovered.items()):
-        candidate = cfg_dir / "wsjtx.ini"
-        if candidate.is_file():
-            return candidate
-
-    inst_root = get_instances_dir()
-    if inst_root.is_dir():
-        for inst_dir in sorted(inst_root.iterdir()):
-            if not inst_dir.is_dir():
-                continue
-            if exclude_rig and inst_dir.name == exclude_rig:
-                continue
-            candidate = inst_dir / "wsjtx.ini"
-            if candidate.is_file():
-                return candidate
+    exclude = exclude_rig.strip().lower()
+    for name, ini in sorted(find_existing_wsjtx_configs().items()):
+        if exclude and name == exclude:
+            continue
+        if ini.is_file():
+            return ini
 
     return None
 
@@ -206,28 +194,33 @@ def scrub_radio_audio_settings(ini_path: Path) -> None:
 # Shared log link
 # ---------------------------------------------------------------------------
 
-def _backup_local_log(log_path: Path) -> Path:
+def _backup_aside(path: Path, suffix: str) -> Path:
     """
-    Rename a real (non-symlink) local log aside so it is never lost when we
-    replace it with a symlink to the shared log. Returns the backup path.
+    Rename `path` aside, appending `suffix` (uniquified with a counter if needed),
+    so it is never lost when we replace it. Returns the backup path.
     """
-    backup = log_path.with_name(log_path.name + ".local-backup")
+    backup = path.with_name(path.name + suffix)
     counter = 1
     while backup.exists():
-        backup = log_path.with_name(f"{log_path.name}.local-backup{counter}")
+        backup = path.with_name(f"{path.name}{suffix}{counter}")
         counter += 1
-    log_path.rename(backup)
+    path.rename(backup)
     return backup
 
 
-def create_log_link(instance_dir: Path, rig_name: str) -> None:
+def _backup_local_log(log_path: Path) -> Path:
+    """Back up a real (non-symlink) local log before replacing it with a symlink."""
+    return _backup_aside(log_path, ".local-backup")
+
+
+def create_log_link(rig_name: str) -> None:
     """
-    Point this instance's WSJT-X log at the single shared log on the NAS.
+    Point this rig's WSJT-X log at the single shared log on the NAS.
 
     WSJT-X writes wsjtx_log.adi into its data/log dir, so the symlink must live
     there (see wsjtx_log_dir_for):
       Linux/Mac: $XDG_DATA_HOME/WSJT-X - <rig>/wsjtx_log.adi -> shared
-      Windows:   instance_dir\\wsjtx_log.adi -> shared  (config == log dir, junctioned)
+      Windows:   %LOCALAPPDATA%\\WSJT-X - <rig>\\wsjtx_log.adi -> shared
 
     The shared log file is created (empty ADI) if it doesn't exist yet. A
     pre-existing *real* local log is backed up, never silently deleted.
@@ -235,7 +228,7 @@ def create_log_link(instance_dir: Path, rig_name: str) -> None:
     shared_dir = get_shared_log_dir()
     shared_log = shared_dir / LOG_FILENAME
 
-    log_dir = wsjtx_log_dir_for(rig_name, instance_dir)
+    log_dir = wsjtx_log_dir_for(rig_name)
     link_path = log_dir / LOG_FILENAME
 
     # Ensure shared log directory and file exist (the NAS is the source of truth)
@@ -306,44 +299,10 @@ def _create_windows_link(link_path: Path, target: Path) -> None:
 # Create instance
 # ---------------------------------------------------------------------------
 
-def _import_existing_wsjtx_config(rig_name: str, instance_dir: Path) -> bool:
-    wsjtx_path = find_existing_wsjtx_config_path(rig_name)
-    if not wsjtx_path:
-        return False
-
-    print(f"[wrig] Found existing WSJT-X config at: {wsjtx_path}")
-    print(f"[wrig] Importing it into managed instance dir: {instance_dir}")
-
-    instance_dir.mkdir(parents=True, exist_ok=True)
-
-    for item in wsjtx_path.iterdir():
-        if item.name == LOG_FILENAME:
-            continue
-        target = instance_dir / item.name
-        if target.exists():
-            continue
-        if item.is_dir():
-            shutil.copytree(item, target)
-        else:
-            shutil.copy2(item, target)
-
-    try:
-        shutil.rmtree(wsjtx_path)
-    except OSError as e:
-        print(f"[wrig] WARNING: could not remove original WSJT-X config dir: {e}")
-        return False
-
-    if not ensure_wsjtx_config_link(rig_name, instance_dir, config_path=wsjtx_path):
-        print(f"[wrig] WARNING: could not link WSJT-X config path for import.")
-        return False
-
-    print(f"[wrig] Replaced original config dir with link: {wsjtx_path} -> {instance_dir}")
-    return True
-
-
 def create_instance(rig_name: str, force: bool = False) -> bool:
     """
-    Create a new WSJTX instance directory for the given rig name.
+    Set up a WSJTX rig instance: seed its config (if new) and link its log to
+    the shared NAS log. WSJTX owns the config thereafter.
 
     Returns True on success, False if it already exists (unless force=True).
     """
@@ -357,55 +316,50 @@ def create_instance(rig_name: str, force: bool = False) -> bool:
         return False
 
     radio, band, mode = parse_rig_name(rig_name)
-    inst_dir = get_instances_dir() / rig_name
+    config_file = wsjtx_config_file_for(rig_name)
 
-    existing_imported = _import_existing_wsjtx_config(rig_name, inst_dir)
+    if config_file.exists() and not force:
+        # WSJTX already has a config for this rig — adopt it untouched.
+        template_name = "existing"
+        print(f"[wrig] Using existing WSJTX config: {config_file}")
+    else:
+        config_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Records how the instance config was sourced (for the registry).
-    template_name = "imported" if existing_imported else ""
+        # --force over an existing config: back it up before reseeding.
+        if config_file.exists():
+            backup = _backup_aside(config_file, ".bak")
+            print(f"[wrig] Backed up existing config to {backup}")
 
-    if not existing_imported:
-        inst_dir.mkdir(parents=True, exist_ok=True)
-        ini_dest = inst_dir / "wsjtx.ini"
-
-        # --- Prefer seeding from an existing WSJT-X / WRIG profile ---
         seed_ini = find_base_wsjtx_ini(exclude_rig=rig_name)
-        if seed_ini:
-            shutil.copy2(str(seed_ini), str(ini_dest))
-            scrub_radio_audio_settings(ini_dest)
+        if seed_ini and seed_ini.resolve() != config_file.resolve():
+            shutil.copy2(str(seed_ini), str(config_file))
+            scrub_radio_audio_settings(config_file)
             template_name = "seeded"
-            print(f"[wrig] Seeded from existing profile: {seed_ini} -> {ini_dest}")
-            print(f"[wrig]   Scrubbed radio/audio settings from seeded profile")
+            print(f"[wrig] Seeded config from existing profile: {seed_ini}")
+            print(f"[wrig]   -> {config_file} (radio/audio cleared)")
         else:
-            # --- Fall back to copying a curated template ---
             template = find_best_template(rig_name)
             if template:
-                shutil.copy2(str(template), str(ini_dest))
+                shutil.copy2(str(template), str(config_file))
                 template_name = template.stem
-                print(f"[wrig] Copied template: {template.name} -> {ini_dest}")
+                print(f"[wrig] Seeded config from template: {template.name} -> {config_file}")
             else:
-                # Write a minimal stub wsjtx.ini
-                ini_dest.write_text(_minimal_wsjtx_ini(rig_name))
+                config_file.write_text(_minimal_wsjtx_ini(rig_name))
                 template_name = "minimal"
-                print(f"[wrig] No template found - created minimal wsjtx.ini")
+                print(f"[wrig] No profile or template found - wrote minimal config: {config_file}")
                 print(f"[wrig]   Add a template to: {templates_dir()}")
 
-        # --- Patch rig name into ini (also re-adds Rig name after scrub) ---
-        patch_wsjtx_ini(ini_dest, rig_name, band, mode)
-    else:
-        ini_dest = inst_dir / "wsjtx.ini"
-        if not ini_dest.exists():
-            ini_dest.write_text(_minimal_wsjtx_ini(rig_name))
-        patch_wsjtx_ini(ini_dest, rig_name, band, mode)
+        # Patch rig name into the config (also re-adds Rig name after scrub).
+        patch_wsjtx_ini(config_file, rig_name, band, mode)
 
-    # --- Create shared log link ---
-    create_log_link(inst_dir, rig_name)
+    # --- Link this rig's log to the shared NAS log ---
+    create_log_link(rig_name)
 
     # --- Register ---
-    register_instance(rig_name, template_name, radio, band, mode, inst_dir)
+    register_instance(rig_name, template_name, radio, band, mode, config_file)
 
-    print(f"[wrig] Instance created: {rig_name}")
-    print(f"[wrig]   Config dir: {inst_dir}")
+    print(f"[wrig] Instance ready: {rig_name}")
+    print(f"[wrig]   Config: {config_file}")
     print(f"[wrig]   Radio={radio}  Band={band or '(unset)'}  Mode={mode or '(unset)'}")
     return True
 
@@ -425,9 +379,9 @@ AzimuthDegrees=0
 
 def delete_instance(rig_name: str, remove_files: bool = False) -> bool:
     """
-    Remove an instance from the registry.
-    If remove_files=True, also deletes the instance config directory.
-    Never touches the shared log file.
+    Unregister an instance. With remove_files=True, also drop this rig's WSJTX
+    config .ini and the shared-log symlink. Never touches the shared log target,
+    and leaves WSJTX's other data (ALL.TXT, save/) alone.
     """
     info = get_instance(rig_name)
     if not info:
@@ -435,14 +389,17 @@ def delete_instance(rig_name: str, remove_files: bool = False) -> bool:
         return False
 
     if remove_files:
-        inst_dir = Path(info["instance_dir"])
-        if inst_dir.exists():
-            # Safety: don't delete symlink target, only the link itself
-            log_link = inst_dir / LOG_FILENAME
-            if log_link.is_symlink():
-                log_link.unlink()
-            shutil.rmtree(str(inst_dir), ignore_errors=True)
-            print(f"[wrig] Deleted config dir: {inst_dir}")
+        # Remove the shared-log symlink (the link only — never the NAS target).
+        log_link = wsjtx_log_dir_for(rig_name) / LOG_FILENAME
+        if log_link.is_symlink():
+            log_link.unlink()
+            print(f"[wrig] Removed log link: {log_link}")
+
+        # Remove this rig's WSJTX config .ini.
+        config_file = wsjtx_config_file_for(rig_name)
+        if config_file.is_file():
+            config_file.unlink()
+            print(f"[wrig] Removed config: {config_file}")
 
     unregister_instance(rig_name)
     print(f"[wrig] Instance '{rig_name}' removed from registry.")
@@ -450,19 +407,15 @@ def delete_instance(rig_name: str, remove_files: bool = False) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Relink — fix broken log symlink
+# Relink — re-create the shared-log symlink
 # ---------------------------------------------------------------------------
 
 def relink_instance(rig_name: str) -> bool:
-    """Re-create the shared-log symlink in WSJT-X's log dir for an existing instance.
-
-    Also repairs instances whose log link was placed in the wrong directory by
-    an earlier version (config dir instead of the data dir WSJT-X logs to).
-    """
+    """Re-create the shared-log symlink in WSJT-X's log dir (e.g. after the
+    share was remounted, or to repair a link placed by an earlier version)."""
     info = get_instance(rig_name)
     if not info:
         print(f"[wrig] Instance '{rig_name}' not found.")
         return False
-    inst_dir = Path(info["instance_dir"])
-    create_log_link(inst_dir, rig_name)
+    create_log_link(rig_name)
     return True

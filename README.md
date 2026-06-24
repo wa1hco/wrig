@@ -58,23 +58,28 @@ selection and display.
 ### How WSJTX itself stores per-rig files
 
 `wsjtx --rig-name NAME` is a **built-in WSJTX feature**: WSJTX appends ` - NAME`
-to its own config and data locations. Config and data are **separate**, and on
-Linux they are even different *kinds* of object:
+to its own config and data locations. Config and data are **separate**, and they
+differ by platform (both verified):
 
-| | Linux/Mac *(verified)* | Windows *(to be confirmed — see [Verifying on Windows](#verifying-wsjtx-paths-on-windows))* |
+| | Linux/Mac | Windows |
 |---|---|---|
-| **Settings** | a flat **file** `~/.config/WSJT-X - NAME.ini` | a flat `.ini` under `%LOCALAPPDATA%` |
-| **Data + log** | a **directory** `~/.local/share/WSJT-X - NAME/`<br>(`wsjtx_log.adi`, `ALL.TXT`, `save/`, …) | `%LOCALAPPDATA%\WSJT-X - NAME\` |
+| **Settings** | a flat **file** `~/.config/WSJT-X - NAME.ini` | a **file in a folder** `%LOCALAPPDATA%\WSJT-X - NAME\WSJT-X - NAME.ini` |
+| **Data + log** | a **directory** `~/.local/share/WSJT-X - NAME/`<br>(`wsjtx_log.adi`, `ALL.TXT`, `save/`, …) | the **same folder** `%LOCALAPPDATA%\WSJT-X - NAME\` |
 
-(Without `--rig-name` it's plain `~/.config/WSJT-X.ini` + `~/.local/share/WSJT-X/`.)
-The per-rig separation is WSJTX's doing — WRIG does not create it.
+(Without `--rig-name`: `WSJT-X.ini` + the `WSJT-X` data dir.) The per-rig
+separation is WSJTX's doing — WRIG does not create it.
 
 ### What WRIG manages
 
-WRIG launches `wsjtx --rig-name <rig-name>` and adds the things WSJTX doesn't do
-itself:
+WRIG runs `wsjtx --rig-name <rig-name>` and adds what WSJTX doesn't do itself:
 
 - **Shared log** — the main feature (below).
+- **Config seeding** — *one-time*, at `wrig create`: it writes WSJTX's **real**
+  config file (the paths in the table above) by copying an existing profile,
+  clearing the radio/audio/CAT keys, and patching `Rig name`. After that WSJTX
+  owns the config — WRIG does not redirect or shadow it. If a config already
+  exists for the rig, WRIG adopts it untouched (unless `--force`, which backs up
+  the old one first).
 - **Registry** of known instances, an interactive **picker**, and shell
   **completion**.
 
@@ -99,28 +104,13 @@ If WRIG finds a **real** (non-symlink) `wsjtx_log.adi` already in a log dir, it
 renames it to `wsjtx_log.adi.local-backup` before linking — it never deletes a
 local log that might hold un-merged QSOs.
 
-### ⚠️ Config seeding — under review
-
-WRIG *also* creates an instance dir under `~/.config/wrig/instances/<rig-name>/`,
-a directory symlink `~/.config/WSJT-X - <rig-name>` → that dir, and seeds a
-`wsjtx.ini` there (copy an existing profile, clear radio/audio, patch `Rig name`).
-
-**On Linux this does not affect WSJTX's configuration:** WSJTX reads the flat
-file `~/.config/WSJT-X - NAME.ini` (see table above) and ignores both the
-directory symlink and the seeded `wsjtx.ini`. The per-rig config you get comes
-from WSJTX's native `--rig-name`, not from this layer. The seeding/redirect
-mechanism is being reworked to target the flat `.ini` directly (or be removed);
-the Windows config path is being confirmed first. **The shared-log feature above
-is unaffected and works.**
-
 ## Commands
 
 ```
 wrig create <rig-name> [--force]
-    Register a new instance and link wsjtx_log.adi (in WSJTX's log dir) to the
-    shared NAS log. It also seeds an instance-dir wsjtx.ini, but note: WSJTX
-    reads its own flat WSJT-X - <name>.ini, so that seeding currently does not
-    configure WSJTX (see "Config seeding — under review").
+    Seed WSJTX's config for the rig (copy an existing profile, clear radio/audio,
+    patch Rig name), or adopt an existing config untouched, then link wsjtx_log.adi
+    to the shared NAS log. --force reseeds, backing up any existing config first.
 
 wrig start [<rig-name-or-prefix>]
     Launch WSJTX. If name is omitted or a prefix, shows an interactive picker.
@@ -216,22 +206,19 @@ one shared file is a single point of failure, so periodic copies are cheap
 insurance). Do **not** put per-machine files there: `machine.ini`, `registry.json`,
 per-rig `wsjtx.ini`, and `ALL.TXT` all stay local to each PC.
 
-### Verifying WSJTX paths on Windows
+### Verifying on Windows
 
-The Linux paths above are confirmed; the Windows config path/filename still needs
-checking on a real Windows box. Run these in `cmd` after launching a rig at least
-once (`wsjtx --rig-name TEST`), and see [`WINDOWS_HANDOFF.md`](WINDOWS_HANDOFF.md)
-for the full investigation + shared-log test checklist:
+Both platforms' paths are confirmed (Windows uses a per-rig folder
+`%LOCALAPPDATA%\WSJT-X - <rig>\` with `WSJT-X - <rig>.ini` inside; Linux uses a
+flat file). The shared-log file plumbing is verified on Windows; the seed-config
+path is implemented but should be re-checked end-to-end on the Windows box. See
+[`WINDOWS_HANDOFF.md`](WINDOWS_HANDOFF.md) for the full test checklist. Quick
+config-path sanity check in `cmd`:
 
 ```cmd
-dir "%LOCALAPPDATA%" | findstr /i WSJT
 dir "%LOCALAPPDATA%\WSJT-X*"
-dir "%APPDATA%" | findstr /i WSJT
-where /r "%LOCALAPPDATA%" wsjtx_log.adi
+type "%LOCALAPPDATA%\WSJT-X - TEST\WSJT-X - TEST.ini"   REM after: wrig create TEST
 ```
-
-This tells us whether WSJTX uses a flat `WSJT-X - TEST.ini`, a nested
-`WSJT-X\...`, or a per-rig folder — which decides how the config layer is reworked.
 
 ## Installation
 
@@ -274,11 +261,11 @@ If `wrig` is not available immediately, open a new PowerShell window (to refresh
 python -m wrig.cli --help
 ```
 
-**Windows note on links:** WRIG points WSJTX's config path at the instance dir
-with a **directory junction** — that works without admin rights. The shared-log
-link is a **symbolic link** to the NAS, which junctions/hardlinks cannot do, so
-enable **Developer Mode** (`Settings → Privacy & security → For developers`) once;
-WRIG then creates it without administrator rights. See
+**Windows note on links:** WRIG no longer redirects WSJTX's config (no junction).
+Its only link is the shared-log **symbolic link** to the NAS, which
+junctions/hardlinks cannot do — so enable **Developer Mode**
+(`Settings → Privacy & security → For developers`) once and WRIG creates it
+without administrator rights. See
 [Reaching the NAS on Windows](#reaching-the-nas-on-windows-unc-vs-mapped-drive)
 for the UNC-vs-mapped-drive trade-off. If link creation fails, WRIG warns and
 prints the manual `mklink` command to run from an elevated prompt.
@@ -290,9 +277,9 @@ Same as Linux. Not tested — patches welcome.
 ## File Layout (Linux/Mac)
 
 ```
-# --- What WSJTX actually reads/writes (created by WSJTX via --rig-name) ---
-~/.config/WSJT-X - flexa-ft8.ini                 ← CONFIG (flat file; WSJTX owns it)
-~/.local/share/WSJT-X - flexa-ft8/               ← DATA dir (WSJTX owns it)
+# --- WSJTX's own per-rig files (WRIG seeds the config, then WSJTX owns it) ---
+~/.config/WSJT-X - flexa-ft8.ini                 ← CONFIG (flat file; wrig seeds it once)
+~/.local/share/WSJT-X - flexa-ft8/               ← DATA dir
   wsjtx_log.adi  →  <shared_log_dir>/wsjtx_log.adi   ← shared-log symlink (placed by wrig)
   ALL.TXT, save/, db.sqlite, ...                     ← stays local
 
@@ -303,14 +290,12 @@ Same as Linux. Not tested — patches welcome.
 ~/.config/wrig/
   machine.ini              ← edit once per machine
   registry.json            ← list of known instances (auto-managed)
-  instances/<rig-name>/
-    wsjtx.ini              ← seeded by wrig, but WSJTX ignores it (see
-                             "Config seeding — under review")
-
-# A directory symlink wrig creates that WSJTX does NOT use on Linux:
-~/.config/WSJT-X - flexa-ft8   →  ~/.config/wrig/instances/flexa-ft8/   (inert)
+  templates/               ← optional curated seed profiles
 ```
 
-On **Windows** there is no `~/.local/share` split: config and data both sit under
-`%LOCALAPPDATA%`. The exact config filename is still being confirmed — see
-[Verifying WSJTX paths on Windows](#verifying-wsjtx-paths-on-windows).
+WRIG does **not** create an instance dir or any config symlink — it writes
+WSJTX's real `WSJT-X - <rig>.ini` and otherwise stays out of the way.
+
+On **Windows** there is no `~/.local/share` split: config and data both live in
+one folder `%LOCALAPPDATA%\WSJT-X - <rig>\`, with the config named
+`WSJT-X - <rig>.ini` inside it and the log symlink alongside.

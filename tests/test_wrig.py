@@ -1,8 +1,22 @@
 import os
 from pathlib import Path
 
+import pytest
+
 from wrig.config import _default_log_dir, _default_wsjtx_binary
 from wrig.registry import parse_rig_name
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Linux/XDG path layout")
+def test_wsjtx_paths_linux(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    from wrig.launcher import (wsjtx_config_file_for, wsjtx_base_config_file,
+                               wsjtx_log_dir_for)
+    # Linux: config is a flat file; log/data is a separate directory.
+    assert wsjtx_config_file_for("FOO") == tmp_path / "cfg" / "WSJT-X - FOO.ini"
+    assert wsjtx_base_config_file() == tmp_path / "cfg" / "WSJT-X.ini"
+    assert wsjtx_log_dir_for("FOO") == tmp_path / "data" / "WSJT-X - FOO"
 
 
 def test_default_log_dir_paths():

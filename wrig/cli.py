@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .config import wrig_config_dir, machine_config_path, templates_dir, get_instances_dir
+from .config import wrig_config_dir, machine_config_path, templates_dir
 from .instance import create_instance, delete_instance, relink_instance
 from .launcher import find_existing_wsjtx_configs, start_instance
 from .picker import pick_instance
@@ -55,7 +55,10 @@ def cmd_start(args):
 
 def cmd_list(args):
     instances = list_instances()
-    existing = find_existing_wsjtx_configs()
+    # Discovered profiles that aren't already registered (compare case-insensitively).
+    registered = {name.lower() for name in instances}
+    existing = {name: path for name, path in find_existing_wsjtx_configs().items()
+                if name not in registered}
 
     if not instances and not existing:
         print("No WRIG instances. Run: wrig create <rig-name>")
@@ -96,13 +99,11 @@ def cmd_config(args):
     cfg_dir = wrig_config_dir()
     machine_cfg = machine_config_path()
     tmpl_dir = templates_dir()
-    inst_dir = get_instances_dir()
 
     print(f"\nWRIG configuration")
     print(f"  Config dir:    {cfg_dir}")
     print(f"  Machine config:{machine_cfg}")
     print(f"  Templates dir: {tmpl_dir}")
-    print(f"  Instances dir: {inst_dir}")
     print()
 
     if machine_cfg.exists():

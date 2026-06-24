@@ -8,6 +8,24 @@ Read this top to bottom, run the steps, and **record the actual output** (paste
 it back, or append it under "Results" at the bottom and commit). Don't guess —
 the whole point is to replace assumptions with observed Windows behaviour.
 
+> **UPDATE (config-layer rework landed).** Using the Part A findings below, the
+> config layer was reworked to **"seed once, then step away"**: `wrig create`
+> now writes WSJTX's **real** config file
+> (`%LOCALAPPDATA%\WSJT-X - <rig>\WSJT-X - <rig>.ini` on Windows; flat
+> `~/.config/WSJT-X - <rig>.ini` on Linux), clears radio/audio, patches Rig name
+> — or adopts an existing config untouched (`--force` reseeds, backing up first).
+> The directory junction/redirect and the instance-dir `wsjtx.ini` are **gone**,
+> which also removes the dangling-junction-on-delete bug. Verified on Linux.
+> **Please re-test on Windows:**
+> 1. `wrig create wintest` → confirm `%LOCALAPPDATA%\WSJT-X - wintest\WSJT-X - wintest.ini`
+>    exists, radio/audio cleared, `Rig name=wintest` set.
+> 2. `wrig list` → no false "discovered" rows for already-registered rigs.
+> 3. `wrig delete wintest --files` → config .ini + log symlink gone, NAS log
+>    intact, **no leftover junction** in `%LOCALAPPDATA%`.
+> 4. `wrig start wintest` → WSJTX launches and uses that config; log a QSO and
+>    confirm it reaches `W:\wsjtx_log.adi`.
+> Append results under "Results".
+
 ---
 
 ## Background — what is known vs. unknown
