@@ -154,14 +154,14 @@ Linux/Mac (NAS mounted at a local path):
 ```ini
 [machine]
 wsjtx_binary   = /usr/bin/wsjtx
-shared_log_dir = /media/share/WRIG/
+shared_log_dir = /media/share/wrig
 ```
 
 Windows (UNC path to the NAS):
 ```ini
 [machine]
 wsjtx_binary   = C:\WSJT\bin\wsjtx.exe
-shared_log_dir = \\192.168.1.5\share\WRIG
+shared_log_dir = \\192.168.1.5\share\wrig
 ```
 
 ### Reaching the NAS on Windows: UNC vs mapped drive
@@ -199,7 +199,7 @@ general share, and map just that folder:
    ```ini
    shared_log_dir = W:\
    ```
-4. **Linux/Mac** — mount/point at the same folder, e.g. `shared_log_dir = /mnt/wrig`.
+4. **Linux/Mac** — mount/point at the same folder, e.g. `shared_log_dir = /media/share/wrig`.
 
 Keep that folder **lean — just the shared log** (optionally a `backups/` subdir;
 one shared file is a single point of failure, so periodic copies are cheap

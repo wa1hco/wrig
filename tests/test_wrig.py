@@ -23,9 +23,9 @@ def test_default_log_dir_paths():
     # The default is a NAS placeholder the user edits; pin the current value
     # so accidental drift is caught.
     if os.name == "nt":
-        assert _default_log_dir() == r"\\192.168.1.5\share"
+        assert _default_log_dir() == r"\\192.168.1.5\share\wrig"
     else:
-        assert _default_log_dir() == "/mnt/nas/share"
+        assert _default_log_dir() == "/media/share/wrig"
 
 
 def test_default_wsjtx_binary_exists_or_fallback():
