@@ -67,7 +67,7 @@ def cmd_list(args):
         for name, info in sorted(instances.items()):
             created = info.get("created", "")[:19].replace("T", " ")
             print(f"{name:<25} {info.get('radio','?'):<10} "
-                  f"{info.get('band','') or '—':<6} {info.get('mode','?'):<10} {created}")
+                  f"{info.get('band','') or '-':<6} {info.get('mode','?'):<10} {created}")
         print()
 
     if existing:
@@ -108,7 +108,7 @@ def cmd_config(args):
     if machine_cfg.exists():
         print(machine_cfg.read_text())
     else:
-        print("(no machine config yet — will be created on first 'wrig create' or 'wrig start')")
+        print("(no machine config yet - will be created on first 'wrig create' or 'wrig start')")
 
 
 def cmd_completion(args):
@@ -321,7 +321,19 @@ examples:
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _make_output_crashproof():
+    """Never let an un-encodable character (e.g. a stray Unicode arrow on a
+    cp1252/cp437 Windows console) crash the CLI. Keep the console's own encoding
+    but degrade un-encodable chars instead of raising UnicodeEncodeError."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass  # non-reconfigurable stream (redirected/older Python) — leave as is
+
+
 def main():
+    _make_output_crashproof()
     parser = build_parser()
     args = parser.parse_args()
 

@@ -17,8 +17,8 @@ dir — a SEPARATE folder on Linux/Mac (~/.local/share/WSJT-X - <rig>/) and the
 same folder as config on Windows — and create_log_link() places the symlink
 there (see launcher.wsjtx_log_dir_for).
 
-wsjtx.ini source order (first that applies): import existing → seed from an
-existing profile (clearing radio/audio) → best-match template → minimal stub.
+wsjtx.ini source order (first that applies): import existing -> seed from an
+existing profile (clearing radio/audio) -> best-match template -> minimal stub.
 
 Template selection (best match wins):
   templates/<radio>-<band>-<mode>.ini   exact match
@@ -77,7 +77,7 @@ def find_best_template(rig_name: str) -> Optional[Path]:
 def patch_wsjtx_ini(ini_path: Path, rig_name: str, band: str, mode: str) -> None:
     """
     Patch a wsjtx.ini file in-place:
-      - Sets [Configuration] → Rig name = <rig_name>
+      - Sets [Configuration] -> Rig name = <rig_name>
       - Optionally sets Band and Mode if not already set
     
     WSJTX uses a non-standard INI format (no section for top-level keys),
@@ -226,8 +226,8 @@ def create_log_link(instance_dir: Path, rig_name: str) -> None:
 
     WSJT-X writes wsjtx_log.adi into its data/log dir, so the symlink must live
     there (see wsjtx_log_dir_for):
-      Linux/Mac: $XDG_DATA_HOME/WSJT-X - <rig>/wsjtx_log.adi → shared
-      Windows:   instance_dir\\wsjtx_log.adi → shared  (config == log dir, junctioned)
+      Linux/Mac: $XDG_DATA_HOME/WSJT-X - <rig>/wsjtx_log.adi -> shared
+      Windows:   instance_dir\\wsjtx_log.adi -> shared  (config == log dir, junctioned)
 
     The shared log file is created (empty ADI) if it doesn't exist yet. A
     pre-existing *real* local log is backed up, never silently deleted.
@@ -263,13 +263,13 @@ def create_log_link(instance_dir: Path, rig_name: str) -> None:
     elif link_path.exists():
         backup = _backup_local_log(link_path)
         print(f"[wrig] Found a real local log at {link_path}")
-        print(f"[wrig]   Backed it up to {backup} — merge into the shared log if it has QSOs")
+        print(f"[wrig]   Backed it up to {backup} - merge into the shared log if it has QSOs")
 
     if is_windows():
         _create_windows_link(link_path, shared_log)
     else:
         link_path.symlink_to(shared_log)
-        print(f"[wrig] Symlink: {link_path} → {shared_log}")
+        print(f"[wrig] Symlink: {link_path} -> {shared_log}")
 
 
 def _create_windows_link(link_path: Path, target: Path) -> None:
@@ -281,14 +281,14 @@ def _create_windows_link(link_path: Path, target: Path) -> None:
     """
     try:
         link_path.symlink_to(target)
-        print(f"[wrig] Symlink: {link_path} → {target}")
+        print(f"[wrig] Symlink: {link_path} -> {target}")
         return
     except (OSError, NotImplementedError):
         pass
 
     try:
         os.link(str(target), str(link_path))
-        print(f"[wrig] Hardlink: {link_path} → {target}")
+        print(f"[wrig] Hardlink: {link_path} -> {target}")
         return
     except OSError:
         pass
@@ -297,7 +297,7 @@ def _create_windows_link(link_path: Path, target: Path) -> None:
     redirect_file = link_path.with_suffix(".adi.wrig_redirect")
     redirect_file.write_text(str(target))
     print(f"[wrig] WARNING: Could not create symlink or hardlink on Windows.")
-    print(f"[wrig]   To enable symlinks: Settings → Developer Mode → ON")
+    print(f"[wrig]   To enable symlinks: Settings -> Developer Mode -> ON")
     print(f"[wrig]   Redirect marker written to: {redirect_file}")
     print(f"[wrig]   Manually set the WSJTX log path to: {target}")
 
@@ -337,7 +337,7 @@ def _import_existing_wsjtx_config(rig_name: str, instance_dir: Path) -> bool:
         print(f"[wrig] WARNING: could not link WSJT-X config path for import.")
         return False
 
-    print(f"[wrig] Replaced original config dir with link: {wsjtx_path} → {instance_dir}")
+    print(f"[wrig] Replaced original config dir with link: {wsjtx_path} -> {instance_dir}")
     return True
 
 
@@ -374,7 +374,7 @@ def create_instance(rig_name: str, force: bool = False) -> bool:
             shutil.copy2(str(seed_ini), str(ini_dest))
             scrub_radio_audio_settings(ini_dest)
             template_name = "seeded"
-            print(f"[wrig] Seeded from existing profile: {seed_ini} → {ini_dest}")
+            print(f"[wrig] Seeded from existing profile: {seed_ini} -> {ini_dest}")
             print(f"[wrig]   Scrubbed radio/audio settings from seeded profile")
         else:
             # --- Fall back to copying a curated template ---
@@ -382,12 +382,12 @@ def create_instance(rig_name: str, force: bool = False) -> bool:
             if template:
                 shutil.copy2(str(template), str(ini_dest))
                 template_name = template.stem
-                print(f"[wrig] Copied template: {template.name} → {ini_dest}")
+                print(f"[wrig] Copied template: {template.name} -> {ini_dest}")
             else:
                 # Write a minimal stub wsjtx.ini
                 ini_dest.write_text(_minimal_wsjtx_ini(rig_name))
                 template_name = "minimal"
-                print(f"[wrig] No template found — created minimal wsjtx.ini")
+                print(f"[wrig] No template found - created minimal wsjtx.ini")
                 print(f"[wrig]   Add a template to: {templates_dir()}")
 
         # --- Patch rig name into ini (also re-adds Rig name after scrub) ---

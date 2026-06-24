@@ -164,14 +164,14 @@ Linux/Mac (NAS mounted at a local path):
 ```ini
 [machine]
 wsjtx_binary   = /usr/bin/wsjtx
-shared_log_dir = /mnt/nas/share
+shared_log_dir = /media/share/WRIG/
 ```
 
 Windows (UNC path to the NAS):
 ```ini
 [machine]
 wsjtx_binary   = C:\WSJT\bin\wsjtx.exe
-shared_log_dir = \\192.168.1.5\share
+shared_log_dir = \\192.168.1.5\share/WRIG
 ```
 
 ### Reaching the NAS on Windows: UNC vs mapped drive

@@ -50,7 +50,7 @@ def _pick_with_fzf(names: list, instances: dict) -> Optional[str]:
     lines = []
     for name in names:
         info = instances[name]
-        label = f"{name:<25}  radio={info.get('radio','?')}  band={info.get('band','') or '—'}  mode={info.get('mode','?')}"
+        label = f"{name:<25}  radio={info.get('radio','?')}  band={info.get('band','') or '-'}  mode={info.get('mode','?')}"
         lines.append(label)
 
     input_text = "\n".join(lines)
@@ -76,7 +76,7 @@ def _pick_with_menu(names: list, instances: dict) -> Optional[str]:
     for i, name in enumerate(names, 1):
         info = instances[name]
         print(f"  {i:<4} {name:<25} {info.get('radio','?'):<10} "
-              f"{info.get('band','') or '—':<6} {info.get('mode','?')}")
+              f"{info.get('band','') or '-':<6} {info.get('mode','?')}")
     print()
     try:
         choice = input("Enter number (or rig name, or Enter to cancel): ").strip()

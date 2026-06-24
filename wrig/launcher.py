@@ -153,7 +153,7 @@ def _create_windows_dir_link(link_path: Path, target: Path) -> bool:
             capture_output=True, text=True
         )
         if result.returncode == 0:
-            print(f"[wrig] Junction: {link_path} → {target}")
+            print(f"[wrig] Junction: {link_path} -> {target}")
             return True
         else:
             print(f"[wrig] WARNING: mklink /J failed: {result.stderr.strip()}")
@@ -163,7 +163,7 @@ def _create_windows_dir_link(link_path: Path, target: Path) -> bool:
     # Fallback: try symlink (requires Developer Mode)
     try:
         link_path.symlink_to(target, target_is_directory=True)
-        print(f"[wrig] Dir symlink: {link_path} → {target}")
+        print(f"[wrig] Dir symlink: {link_path} -> {target}")
         return True
     except OSError:
         pass
@@ -206,7 +206,7 @@ def start_instance(rig_name: str, dry_run: bool = False) -> bool:
     print(f"[wrig] Launching: {' '.join(cmd)}")
 
     if dry_run:
-        print("[wrig] (dry-run — not actually launching)")
+        print("[wrig] (dry-run - not actually launching)")
         return True
 
     if is_windows():
